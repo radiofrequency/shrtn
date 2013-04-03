@@ -46,14 +46,14 @@ function generateId(callback){
   var keyLength = new Number(config.get('key length'));
   
   // check for the number of existing keys
-  redisClient.keys('*', function(error, response){
+  redisClient.scard('shrtnlinks', function(error, response){
 
     // while half of the number of possible random keys
     // is less than the number of keys set, increase the
     // number of random keys possible by increasing key 
     // length.
     
-    while(Math.pow(chars.length, keyLength)/2 < response.length){
+    while(Math.pow(chars.length, keyLength)/2 < response){
       keyLength ++;
     }
 
@@ -83,7 +83,8 @@ function shorten(long, callback){
   }
 
   generateId(function(newId){
-    redisClient.setnx(newId, long, function(err, res){
+    redisClient.setnx("shrtnlink:" +newId, long, function(err, res){
+        redisClient.sadd("shrtnlinks", newId);
       if(res){
         var response = {
           'status': 'OK',
