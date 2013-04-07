@@ -84,15 +84,15 @@ function shorten(long, callback){
 
   generateId(function(newId){
     redisClient.setnx("shrtnlink:" +newId, long, function(err, res){
-        redisClient.sadd("shrtnlinks", newId);
       if(res){
         var response = {
           'status': 'OK',
           'id': newId,
           'long': long
         }
+        redisClient.sadd("shrtnlinks", newId);
 
-        if(typeof(callback) === 'function'){callback(response)}
+          if(typeof(callback) === 'function'){callback(response)}
         shrtn.emit('shortened', response);
         return true;
       } else {
