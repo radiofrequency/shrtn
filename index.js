@@ -39,14 +39,14 @@ function isURL(s){
 }
 
 
-function generateId(callback){
+function generateId(linkset, callback){
   var id = '';
   var redisClient = getRedisClient();
   var chars = config.get('chars').toString();
   var keyLength = new Number(config.get('key length'));
   
   // check for the number of existing keys
-  redisClient.scard('shrtnlinks', function(error, response){
+  redisClient.scard(linkset, function(error, response){
 
     // while half of the number of possible random keys
     // is less than the number of keys set, increase the
@@ -66,9 +66,34 @@ function generateId(callback){
     callback(id);
   });
 }
+function updateShortImage(linkset, imagename, data, callback) {
+    var redisClient = getRedisClient();
+    redisClient.set(linkset + ":" + imagename, JSON.stringify(data), callback);
+}
+function shortenImage(linkset, imagename, callback) {
+    var redisClient = getRedisClient();
+    generateId(linkset, function(newId){
+        redisClient.setnx(linkset + ":" +newId, imagename, function(err, res){
+            if(res){
+                var response = {
+                    'status': 'OK',
+                    'id': newId,
+                    'name': imagename
+                }
+                redisClient.sadd(linkset, newId);
 
+                if(typeof(callback) === 'function'){callback(response)}
+                //shrtn.emit('shortened', response);
+                return true;
+            } else {
+                // the attempted ID is taken
+                shortenImage(linkset, imagename, callback);
+            }
+        });
+    });
+};
 
-function shorten(long, callback){
+function shorten(linkset, long, callback){
   var redisClient = getRedisClient();
 
   if (!(isURL(long))){
@@ -82,32 +107,32 @@ function shorten(long, callback){
     return false;
   }
 
-  generateId(function(newId){
-    redisClient.setnx("shrtnlink:" +newId, long, function(err, res){
+  generateId(linkset, function(newId){
+    redisClient.setnx(linkset + ":" +newId, long, function(err, res){
       if(res){
         var response = {
           'status': 'OK',
           'id': newId,
           'long': long
         }
-        redisClient.sadd("shrtnlinks", newId);
+        redisClient.sadd(linkset, newId);
 
           if(typeof(callback) === 'function'){callback(response)}
         shrtn.emit('shortened', response);
         return true;
       } else {
         // the attempted ID is taken
-        shorten(long, callback);
+        shorten(linkset, long, callback);
       }
     });
   });
 }
 
 
-function expand(id, callback){
+function expand(linkset, id, callback){
   var redisClient = getRedisClient();
 
-  redisClient.get(id, function(err, response){
+  redisClient.get(linkset  + ":" + id, function(err, response){
     if (response){
       var result = {
         'status': 'OK',
@@ -136,6 +161,8 @@ function expand(id, callback){
 var shrtn = new events.EventEmitter();
 shrtn.config = config;
 shrtn.shorten = shorten;
+shrtn.shortenImage = shortenImage;
+shrtn.updateShortImage = updateShortImage;
 shrtn.expand = expand;
 
 module.exports = shrtn;
